@@ -24,6 +24,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-08)
 - `.planning/phases/01-reverse-engineer-geragu-experience/UX-PATTERNS.md` - Phase 1 UX pattern inventory
 - `.planning/phases/01-reverse-engineer-geragu-experience/SAFETY-INVENTORY.md` - Phase 1 reuse safety boundary
 - `.planning/phases/01-reverse-engineer-geragu-experience/PHASE-1-HANDOFF.md` - Phase 1 handoff to converter planning
+- `.planning/phases/01-reverse-engineer-geragu-experience/01-SUMMARY.md` - Phase 1 execution summary
 
 ## Phase Status
 
