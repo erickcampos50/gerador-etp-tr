@@ -1,15 +1,15 @@
-# Gerador de Termo de Referencia
+# Aplicacao Publica
 
-Aplicacao web local, sem backend, para preencher o modelo DOCX convertido do Termo de Referencia com campos guiados, notas explicativas, escolhas condicionais e preview ao vivo.
+Esta pasta e o site estatico publicado no GitHub Pages. Ela contem tudo que precisa ser servido: `index.html`, `styles.css`, `app.js`, `model-data.js` e `.nojekyll`.
 
 ## Como Usar
 
-1. Abra `app/index.html` no navegador.
-2. Preencha os campos obrigatorios.
+1. Abra `index.html` no navegador, ou use o workflow de GitHub Pages da raiz do repositorio.
+2. Preencha os campos disponiveis.
 3. Use os botoes `Nota explicativa` para consultar orientacoes juridicas durante o preenchimento.
-4. Resolva as alternativas `OU` exibidas como escolhas obrigatorias.
-5. Clique em `Verificar pendencias`.
-6. Quando nao houver pendencias, clique em `Gerar HTML imprimivel`.
+4. Resolva as alternativas `OU` exibidas como escolhas.
+5. Clique em `Verificar pendencias` para revisar campos pendentes.
+6. Clique em `Gerar HTML imprimivel` para exportar o resultado.
 
 ## Conversao
 
@@ -26,7 +26,8 @@ Aplicacao web local, sem backend, para preencher o modelo DOCX convertido do Ter
 
 ## Arquivos
 
-- `model-data.js` - dados estruturados e contrato de extracao consumidos pela UI.
 - `index.html` - shell local da aplicacao.
 - `styles.css` - layout, preview e responsividade.
 - `app.js` - renderizacao do formulario, preview, validacao e HTML imprimivel.
+- `model-data.js` - dados estruturados e contrato de extracao consumidos pela UI.
+- `.nojekyll` - impede processamento Jekyll quando publicado no GitHub Pages.

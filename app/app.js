@@ -39,6 +39,11 @@
     return model.notes.find((note) => note.id === id);
   }
 
+  function fieldDocumentLabel(field, fallback) {
+    if (!field) return fallback;
+    return String(field.label).replace(/^Campo \d+\.\d+:\s*/, "");
+  }
+
   function templateToHtml(template, resolvePlaceholder) {
     let html = "";
     let lastIndex = 0;
@@ -68,7 +73,7 @@
         return `<mark data-field-id="${escapeHtml(id)}">${escapeHtml(value)}</mark>`;
       }
       const field = findField(id);
-      return `<span class="unresolved" data-field-id="${escapeHtml(id)}">${escapeHtml(field ? field.label : id)}</span>`;
+      return `<span class="unresolved" data-field-id="${escapeHtml(id)}">${escapeHtml(fieldDocumentLabel(field, id))}</span>`;
     });
   }
 
@@ -110,6 +115,94 @@
     button.title = "Nota explicativa";
     button.addEventListener("click", (e) => { e.stopPropagation(); showNote(noteId); });
     return button;
+  }
+
+  function documentHeaderHtml() {
+    return `
+      <header class="document-header">
+        <div class="document-seal" aria-hidden="true">AGU</div>
+        <div class="document-heading-text">
+          <strong>Advocacia-Geral da União</strong>
+          <span>Modelo referencial de contratação pública</span>
+          <small>${escapeHtml(model.metadata.versionLabel || "versao nao informada")}</small>
+        </div>
+      </header>
+      <div class="document-annex">Anexo - modelo referencial</div>
+      <h1>Termo de Referência</h1>
+      <p class="document-model-title">${escapeHtml(model.metadata.title)}</p>
+    `;
+  }
+
+  function documentFooterHtml() {
+    const notePolicy = model.metadata.notesSuppressedInFinal ? "notas explicativas suprimidas da versão final" : "política de notas não definida";
+    return `<footer class="document-footer">Modelo utilizado: ${escapeHtml(model.metadata.sourceName || "fonte não informada")} (${escapeHtml(model.metadata.versionLabel || "versão não informada")}) - ${escapeHtml(notePolicy)}</footer>`;
+  }
+
+  function appendDocumentChrome(target) {
+    const wrapper = document.createElement("div");
+    wrapper.innerHTML = documentHeaderHtml();
+    while (wrapper.firstChild) target.appendChild(wrapper.firstChild);
+  }
+
+  function blockClassName(block, extra) {
+    const classes = [];
+    if (extra) classes.push(extra);
+    if (block.role === "variable_red_italic") classes.push("variable-output");
+    if (block.role === "mixed_semantic") classes.push("semantic-review");
+    return classes.join(" ");
+  }
+
+  function classAttribute(value) {
+    return value ? ` class="${escapeHtml(value)}"` : "";
+  }
+
+  function templateToDisplayText(template) {
+    return String(template).replace(/\{\{([^}]+)\}\}/g, (match, rawId) => {
+      const id = rawId.trim();
+      const field = findField(id);
+      if (field) return fieldDocumentLabel(field, `[${id}]`);
+      const choice = findChoice(id);
+      if (choice) return `[${choice.label}]`;
+      return `[${id}]`;
+    });
+  }
+
+  function optionOutputBlocks(option) {
+    if (Array.isArray(option.outputBlocks) && option.outputBlocks.length) {
+      return option.outputBlocks;
+    }
+    return (option.output || []).map((text, index) => ({
+      id: `${option.value}_fallback_${index}`,
+      type: "paragraph",
+      role: "fixed_candidate",
+      text,
+      docNumber: ""
+    }));
+  }
+
+  function optionOutputTexts(option) {
+    return optionOutputBlocks(option).map((outputBlock) => String(outputBlock.text || ""));
+  }
+
+  function appendPreviewParagraph(target, block, extraClass) {
+    const p = document.createElement("p");
+    p.className = blockClassName(block, extraClass);
+    if (block.docNumber) {
+      const idx = document.createElement("span");
+      idx.className = "p-index";
+      idx.textContent = `${block.docNumber} `;
+      p.appendChild(idx);
+    }
+    const textSpan = document.createElement("span");
+    textSpan.innerHTML = renderTemplate(block.text);
+    p.appendChild(textSpan);
+    target.appendChild(p);
+    return p;
+  }
+
+  function finalParagraphHtml(block, extraClass) {
+    const indexHtml = block.docNumber ? `<span class="p-index">${escapeHtml(block.docNumber)} </span>` : "";
+    return `<p${classAttribute(blockClassName(block, extraClass))}>${indexHtml}${cleanTemplate(block.text)}</p>`;
   }
 
   function scrollToPreviewBlock(blockId) {
@@ -264,9 +357,31 @@
         renderValidation();
       });
       wrapper.appendChild(radio);
-      const span = document.createElement("span");
-      span.textContent = option.label;
-      wrapper.appendChild(span);
+      const content = document.createElement("span");
+      content.className = "choice-option-content";
+      const label = document.createElement("span");
+      label.className = "choice-option-label";
+      label.textContent = option.label;
+      content.appendChild(label);
+
+      const outputBlocks = optionOutputBlocks(option);
+      if (outputBlocks.length) {
+        const details = document.createElement("details");
+        details.className = "choice-output-preview";
+        if (outputBlocks.length <= 8) details.open = true;
+        const summary = document.createElement("summary");
+        summary.textContent = "Redacao desta opcao";
+        details.appendChild(summary);
+        outputBlocks.forEach((outputBlock) => {
+          const line = document.createElement("p");
+          line.className = blockClassName(outputBlock, "choice-output-line");
+          line.textContent = `${outputBlock.docNumber ? `${outputBlock.docNumber} ` : ""}${templateToDisplayText(outputBlock.text || "")}`;
+          details.appendChild(line);
+        });
+        content.appendChild(details);
+      }
+
+      wrapper.appendChild(content);
       group.appendChild(wrapper);
     });
 
@@ -406,7 +521,7 @@
           if (!choice) return;
           body.appendChild(makeChoiceGroup(choice, block));
           choice.options.forEach((option) => {
-            (option.output || []).forEach((text) => {
+            optionOutputTexts(option).forEach((text) => {
               const refs = [...text.matchAll(/\{\{([^}]+)\}\}/g)].map((m) => m[1].trim());
               refs.forEach((refId) => {
                 const field = findField(refId);
@@ -435,9 +550,7 @@
 
   function renderPreview(focusBlockId) {
     previewRoot.innerHTML = "";
-    const title = document.createElement("h1");
-    title.textContent = model.metadata.title;
-    previewRoot.appendChild(title);
+    appendDocumentChrome(previewRoot);
 
     model.sections.forEach((section) => {
       const heading = document.createElement("h2");
@@ -452,17 +565,7 @@
 
         if (block.type === "paragraph") {
           if (state.excluded[block.id]) return;
-          const p = document.createElement("p");
-          if (block.docNumber) {
-            const idx = document.createElement("span");
-            idx.className = "p-index";
-            idx.textContent = block.docNumber + " ";
-            p.appendChild(idx);
-          }
-          const textSpan = document.createElement("span");
-          textSpan.innerHTML = renderTemplate(block.text);
-          p.appendChild(textSpan);
-          wrapper.appendChild(p);
+          appendPreviewParagraph(wrapper, block);
           (block.noteIds || []).forEach((nid) => wrapper.appendChild(noteButton(nid)));
         }
 
@@ -492,18 +595,17 @@
             warning.textContent = block.unresolvedWarning;
             wrapper.appendChild(warning);
           } else {
-            selected.output.forEach((text) => {
-              const p = document.createElement("p");
-              p.className = "conditional-output";
-              p.innerHTML = renderTemplate(text);
-              wrapper.appendChild(p);
-            });
+            optionOutputBlocks(selected).forEach((outputBlock) => appendPreviewParagraph(wrapper, outputBlock, "conditional-output"));
           }
         }
 
         previewRoot.appendChild(wrapper);
       });
     });
+
+    const footer = document.createElement("div");
+    footer.innerHTML = documentFooterHtml();
+    previewRoot.appendChild(footer.firstChild);
 
     if (focusBlockId) scrollToPreviewBlock(focusBlockId);
   }
@@ -559,29 +661,29 @@
       }
       const value = state.fields[id];
       const field = findField(id);
-      return escapeHtml(value || `[${field ? field.label : id}]`);
+      return escapeHtml(value || fieldDocumentLabel(field, `[${id}]`));
     });
   }
 
   function finalDocumentBody() {
     const parts = [];
-    parts.push(`<h1>${escapeHtml(model.metadata.title)}</h1>`);
+    parts.push(`<main class="print-document">`);
+    parts.push(documentHeaderHtml());
     model.sections.forEach((section) => {
       parts.push(`<h2>${escapeHtml(section.title)}</h2>`);
       (section.blocks || []).forEach((block) => {
         if (block.type === "paragraph") {
-          parts.push(`<p>${cleanTemplate(block.text)}</p>`);
+          parts.push(finalParagraphHtml(block));
         }
         if (block.type === "table") {
           if (state.excluded[block.id]) return;
           const data = state.tableData[block.id] || block.rows;
-          parts.push(`<table style="border-collapse:collapse;width:100%;margin:1em 0;border:1px solid #888;">`);
+          parts.push(`<table>`);
           data.forEach((row, ri) => {
             parts.push(`<tr>`);
             (row || []).forEach((cell) => {
               const tag = ri === 0 ? "th" : "td";
-              const bg = ri === 0 ? "background:#eef3f7;" : "";
-              parts.push(`<${tag} style="border:1px solid #bbb;padding:5px 8px;${bg}vertical-align:top;">${escapeHtml(cell || "")}</${tag}>`);
+              parts.push(`<${tag}>${escapeHtml(cell || "")}</${tag}>`);
             });
             parts.push(`</tr>`);
           });
@@ -591,13 +693,13 @@
           const choice = findChoice(block.choiceId);
           const selected = choice.options.find((option) => option.value === state.choices[choice.id]);
           if (selected) {
-            selected.output.forEach((text) => parts.push(`<p class="conditional-output">${cleanTemplate(text)}</p>`));
+            optionOutputBlocks(selected).forEach((outputBlock) => parts.push(finalParagraphHtml(outputBlock, "conditional-output")));
           }
         }
       });
     });
-    const notePolicy = model.metadata.notesSuppressedInFinal ? "conteudo de apoio suprimido da versao final" : "politica de apoio nao definida";
-    parts.push(`<footer>Modelo utilizado: ${escapeHtml(model.metadata.sourceName)} (${escapeHtml(model.metadata.versionLabel)}) - ${escapeHtml(notePolicy)}</footer>`);
+    parts.push(documentFooterHtml());
+    parts.push(`</main>`);
     return parts.join("\n");
   }
 
@@ -608,13 +710,28 @@
   <meta charset="utf-8">
   <title>${escapeHtml(model.metadata.title)}</title>
   <style>
-    body { font-family: "Times New Roman", Times, serif; font-size: 12pt; line-height: 1.5; margin: 2.5cm 3cm; color: #111; }
-    h1 { font-size: 14pt; text-align: center; text-transform: uppercase; margin-bottom: 1.5em; }
-    h2 { font-size: 12pt; margin-top: 1.5rem; margin-bottom: 0.5rem; text-transform: uppercase; }
-    p { margin: 0.4em 0; text-align: justify; }
-    .conditional-output { background: #ffd6d6; color: #990000; font-style: italic; padding: 0 0.15rem; }
-    footer { border-top: 1px solid #999; margin-top: 2rem; padding-top: 0.5rem; font-size: 9pt; color: #555; }
-    @media print { body { margin: 1.5cm; } }
+    @page { size: A4; margin: 1.35cm 1.45cm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f2f2f2; color: #111; font-family: Arial, Helvetica, sans-serif; font-size: 10pt; line-height: 1.28; }
+    .print-document { max-width: 19cm; min-height: 27.7cm; margin: 0 auto; padding: 1.25cm 1.45cm 1cm; background: #fff; }
+    .document-header { align-items: center; border-bottom: 2px solid #1f1f1f; display: flex; gap: 0.9rem; justify-content: center; margin-bottom: 0.45rem; padding-bottom: 0.55rem; text-align: center; text-transform: uppercase; }
+    .document-seal { align-items: center; border: 1px solid #333; border-radius: 50%; display: inline-flex; flex: 0 0 2.45rem; font-size: 0.7rem; font-weight: 700; height: 2.45rem; justify-content: center; width: 2.45rem; }
+    .document-heading-text { display: grid; gap: 0.08rem; }
+    .document-heading-text strong { font-size: 10pt; }
+    .document-heading-text span, .document-heading-text small, .document-model-title, .document-footer { font-size: 7.5pt; }
+    .document-annex { background: #e6e6e6; border: 1px solid #222; font-size: 7.5pt; font-weight: 700; margin: 0.4rem 0 0.6rem; padding: 0.1rem 0.25rem; text-align: center; text-transform: uppercase; }
+    h1 { font-size: 10.5pt; margin: 0.55rem 0 0.35rem; text-align: center; text-transform: uppercase; }
+    .document-model-title { margin: 0 0 0.55rem; text-align: center; text-transform: uppercase; }
+    h2 { background: #e6e6e6; border: 1px solid #222; font-size: 8.5pt; margin: 0.65rem 0 0.35rem; padding: 0.12rem 0.25rem; text-transform: uppercase; }
+    p { margin: 0.32em 0; text-align: justify; }
+    .p-index { font-weight: 700; margin-right: 0.2rem; }
+    table { border-collapse: collapse; margin: 0.45rem 0; width: 100%; }
+    th, td { border: 1px solid #333; font-size: 8pt; padding: 0.18rem 0.28rem; vertical-align: top; }
+    th { background: #ededed; font-weight: 700; }
+    mark, .conditional-output, .variable-output { background: #ffd6d6; color: #990000; font-style: italic; padding: 0 0.15rem; }
+    .semantic-review { color: #111; }
+    .document-footer { border-top: 1px solid #333; margin-top: 0.9rem; padding-top: 0.28rem; text-align: center; }
+    @media print { body { background: #fff; } .print-document { max-width: none; min-height: 0; padding: 0; } }
   </style>
 </head>
 <body>

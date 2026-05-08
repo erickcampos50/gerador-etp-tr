@@ -56,6 +56,8 @@ def span_formatting(classes_str: str, class_map: dict[str, dict[str, object]]) -
     color = "000000"
     italic = False
     bold = False
+    underline = False
+    bg_yellow = False
     for cls in classes_str.strip().split():
         fmt = class_map.get(cls, {})
         if fmt.get("color") and fmt["color"] != "000000":
@@ -64,7 +66,11 @@ def span_formatting(classes_str: str, class_map: dict[str, dict[str, object]]) -
             italic = True
         if fmt.get("bold"):
             bold = True
-    return {"color": color, "italic": italic, "bold": bold}
+        if fmt.get("underline"):
+            underline = True
+        if fmt.get("bg_yellow"):
+            bg_yellow = True
+    return {"color": color, "italic": italic, "bold": bold, "underline": underline, "bg_yellow": bg_yellow}
 
 
 def normalize_space(value: str) -> str:
@@ -160,6 +166,11 @@ def parse_html_document(html_path: Path) -> dict[str, object]:
         red_runs = [r for r in runs if str(r.get("color", "")).upper() == "FF0000"]
         red_italic_runs = [r for r in red_runs if r.get("italic")]
         italic_runs = [r for r in runs if r.get("italic")]
+        variable_run_texts = [
+            normalize_space(str(r.get("text", "")))
+            for r in red_italic_runs
+            if normalize_space(str(r.get("text", "")))
+        ]
         stripped_text = normalize_space(text)
         is_ou_marker = stripped_text.upper() == "OU" or stripped_text == "OU"
         has_ou = is_ou_marker or bool(re.search(r"(^|\s)OU(\s|$)", stripped_text))
@@ -188,6 +199,7 @@ def parse_html_document(html_path: Path) -> dict[str, object]:
                 "has_red": bool(red_runs),
                 "has_red_italic": bool(red_italic_runs),
                 "has_italic": bool(italic_runs),
+                "variable_run_texts": variable_run_texts,
                 "comment_ids": [],
                 "ambiguity_flags": ambiguity,
             },
@@ -281,6 +293,13 @@ class ModelBuilder:
     def paragraph_block(self, paragraph: dict[str, object]) -> dict[str, object]:
         c = paragraph["classification"]
         return {"id": f"p{paragraph['index']}", "type": "paragraph", "role": c["role"],
+                "styleFlags": {
+                    "hasRed": c.get("has_red", False),
+                    "hasRedItalic": c.get("has_red_italic", False),
+                    "hasItalic": c.get("has_italic", False),
+                    "variableRunTexts": c.get("variable_run_texts", []),
+                },
+                "runs": paragraph.get("runs", []),
                 "text": self.template_from_text(str(paragraph["text"]), int(paragraph["index"])),
                 "sourceIndex": paragraph["index"], "noteIds": [],
                 "ambiguityFlags": c.get("ambiguity_flags", [])}
@@ -291,14 +310,20 @@ class ModelBuilder:
         options = []
         note_ids: list[str] = []
         for index, blocks in enumerate(alternatives, start=1):
-            first_text = next((str(block["text"]) for block in blocks if block.get("text")), f"Opcao {index}")
+            output_blocks = [
+                block
+                for block in blocks
+                if block.get("type") == "paragraph" and block.get("text")
+            ]
+            first_text = next((str(block["text"]) for block in output_blocks if block.get("text")), f"Opcao {index}")
             for block in blocks:
                 for nid in block.get("noteIds", []):
                     if nid not in note_ids:
                         note_ids.append(nid)
             options.append({"value": f"opcao_{index}",
                             "label": clipped(re.sub(r"{{[^}]+}}", "[...]", first_text), 100),
-                            "output": [str(block["text"]) for block in blocks]})
+                            "output": [str(block["text"]) for block in output_blocks],
+                            "outputBlocks": output_blocks})
         self.choices.append({"id": choice_id, "label": f"Escolha de redacao - {section_title}",
                              "required": True, "noteIds": note_ids, "options": options})
         return {"id": f"{choice_id}_block", "type": "choice", "choiceId": choice_id,

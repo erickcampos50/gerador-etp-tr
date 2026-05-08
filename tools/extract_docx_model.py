@@ -73,6 +73,17 @@ def load_comments(zf: zipfile.ZipFile) -> dict[str, str]:
     return comments
 
 
+def load_part_texts(zf: zipfile.ZipFile, prefix: str) -> list[dict[str, str]]:
+    parts: list[dict[str, str]] = []
+    for name in sorted(zf.namelist()):
+        if not name.startswith(prefix) or not name.endswith(".xml"):
+            continue
+        text = normalize_space(text_from_element(ET.fromstring(zf.read(name))))
+        if text:
+            parts.append({"part": name, "text": text})
+    return parts
+
+
 def normalize_space(value: str) -> str:
     return re.sub(r"\s+", " ", value).strip()
 
@@ -94,6 +105,11 @@ def classify_paragraph(text: str, runs: list[dict[str, object]], comment_ids: li
     red_runs = [r for r in runs if str(r.get("color", "")).upper() == "FF0000"]
     red_italic_runs = [r for r in red_runs if r.get("italic")]
     italic_runs = [r for r in runs if r.get("italic")]
+    variable_run_texts = [
+        normalize_space(str(r.get("text", "")))
+        for r in red_italic_runs
+        if normalize_space(str(r.get("text", "")))
+    ]
     stripped = normalize_space(text)
     is_ou_marker = stripped == "OU"
     has_ou = is_ou_marker or bool(re.search(r"(^|\s)OU(\s|$)", stripped))
@@ -121,6 +137,7 @@ def classify_paragraph(text: str, runs: list[dict[str, object]], comment_ids: li
         "has_red": bool(red_runs),
         "has_red_italic": bool(red_italic_runs),
         "has_italic": bool(italic_runs),
+        "variable_run_texts": variable_run_texts,
         "comment_ids": comment_ids,
         "ambiguity_flags": ambiguity,
     }
@@ -177,7 +194,8 @@ class NumberingTracker:
 
         # Increment this level
         key = (num_id, ilvl)
-        self.counters[key] = self.counters.get(key, 0) + 1
+        start = int(lvl_info.get("start", "1") or "1")
+        self.counters[key] = self.counters.get(key, start - 1) + 1
         count = self.counters[key]
 
         # Also ensure parent levels have at least 1 (for formatting)
@@ -191,7 +209,8 @@ class NumberingTracker:
         for l in range(9):
             placeholder = f"%{l + 1}"
             ck = (num_id, str(l))
-            val = format_number(self.counters.get(ck, 0), lvl_info.get("fmt", "decimal"))
+            level_fmt = levels.get(str(l), {}).get("fmt", "decimal")
+            val = format_number(self.counters.get(ck, 0), level_fmt)
             template = template.replace(placeholder, val)
         return template
 
@@ -200,6 +219,8 @@ def parse_document(docx_path: Path) -> dict[str, object]:
     with zipfile.ZipFile(docx_path) as zf:
         document_xml = zf.read("word/document.xml")
         comments = load_comments(zf)
+        headers = load_part_texts(zf, "word/header")
+        footers = load_part_texts(zf, "word/footer")
         root = ET.fromstring(document_xml)
         try:
             num_xml = zf.read("word/numbering.xml")
@@ -317,6 +338,8 @@ def parse_document(docx_path: Path) -> dict[str, object]:
         "source": {
             "file": str(docx_path),
             "sha256": sha256,
+            "headers": headers,
+            "footers": footers,
         },
         "counts": {
             "paragraphs": len(paragraphs),
@@ -384,6 +407,10 @@ class ModelBuilder:
         )
         return choice_id
 
+    def is_generic_label(self, label: str) -> bool:
+        stripped = label.strip(" .")
+        return len(stripped) <= 3 or stripped == "..."
+
     def template_from_text(self, text: str, paragraph_index: int) -> str:
         inline_choices: dict[str, str] = {}
 
@@ -400,7 +427,10 @@ class ModelBuilder:
             occurrence += 1
             raw = match.group(0)
             label = raw[1:-1].strip()
-            field_id = self.field_id(label, paragraph_index, occurrence, reusable=True)
+            reusable = not self.is_generic_label(label)
+            if self.is_generic_label(label):
+                label = f"Campo {paragraph_index}.{occurrence}: {raw}"
+            field_id = self.field_id(label, paragraph_index, occurrence, reusable=reusable)
             return "{{" + field_id + "}}"
 
         prepared = PLACEHOLDER_RE.sub(replace_placeholder, prepared)
@@ -425,6 +455,13 @@ class ModelBuilder:
             "id": f"p{paragraph['index']}",
             "type": "paragraph",
             "role": classification["role"],
+            "styleFlags": {
+                "hasRed": classification.get("has_red", False),
+                "hasRedItalic": classification.get("has_red_italic", False),
+                "hasItalic": classification.get("has_italic", False),
+                "variableRunTexts": classification.get("variable_run_texts", []),
+            },
+            "runs": paragraph.get("runs", []),
             "text": self.template_from_text(str(paragraph["text"]), int(paragraph["index"])),
             "sourceIndex": paragraph["index"],
             "docNumber": str(paragraph.get("docNumber", "")),
@@ -439,41 +476,6 @@ class ModelBuilder:
             "rows": table["rows"],
             "sourceIndex": pindex,
             "noteIds": [],
-        }
-
-    def add_block_choice(self, section_title: str, alternatives: list[list[dict[str, object]]]) -> dict[str, object]:
-        self.choice_counter += 1
-        choice_id = f"choice_block_{self.choice_counter}"
-        options = []
-        note_ids: list[str] = []
-        for index, blocks in enumerate(alternatives, start=1):
-            first_text = next((str(block["text"]) for block in blocks if block.get("text")), f"Opcao {index}")
-            for block in blocks:
-                for note_id in block.get("noteIds", []):
-                    if note_id not in note_ids:
-                        note_ids.append(note_id)
-            options.append(
-                {
-                    "value": f"opcao_{index}",
-                    "label": clipped(re.sub(r"{{[^}]+}}", "[...]", first_text), 100),
-                    "output": [str(block["text"]) for block in blocks],
-                }
-            )
-        self.choices.append(
-            {
-                "id": choice_id,
-                "label": f"Escolha de redacao - {section_title}",
-                "required": True,
-                "noteIds": note_ids,
-                "options": options,
-            }
-        )
-        return {
-            "id": f"{choice_id}_block",
-            "type": "choice",
-            "choiceId": choice_id,
-            "role": "alternative_ou",
-            "unresolvedWarning": f"Escolha uma das redacoes separadas por OU em {section_title}.",
         }
 
     @staticmethod
@@ -531,7 +533,12 @@ class ModelBuilder:
         options = []
         note_ids: list[str] = []
         for index, blocks in enumerate(alternatives, start=1):
-            texts = [str(b.get("text", "")) for b in blocks if b.get("type") == "paragraph" and b.get("text")]
+            output_blocks = [
+                block
+                for block in blocks
+                if block.get("type") == "paragraph" and block.get("text")
+            ]
+            texts = [str(block.get("text", "")) for block in output_blocks]
             first_text = texts[0] if texts else f"Opcao {index}"
             for block in blocks:
                 for note_id in block.get("noteIds", []):
@@ -541,6 +548,7 @@ class ModelBuilder:
                 "value": f"opcao_{index}",
                 "label": clipped(re.sub(r"{{[^}]+}}", "[...]", first_text), 100),
                 "output": texts,
+                "outputBlocks": output_blocks,
             })
         self.choices.append({
             "id": choice_id,
@@ -622,6 +630,8 @@ class ModelBuilder:
                 "sourceName": Path(str(source["file"])).name,
                 "sourceType": "DOCX canonical",
                 "sourceSha256": source["sha256"],
+                "headerEvidence": source.get("headers", []),
+                "footerEvidence": source.get("footers", []),
                 "versionLabel": "dez/25",
                 "outputMode": "printable-html",
                 "notesSuppressedInFinal": True,

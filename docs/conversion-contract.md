@@ -56,3 +56,5 @@ python3 tools/extract_docx_model.py "Documentos modelo/DOCX modelo-de-termo-de-c
 - Converts standalone `OU` groups into required block choices so final output emits only the selected alternative.
 - Converts inline bracket alternatives into required radio choices embedded back into the paragraph template.
 - Converts DOCX comments into authoring-only notes attached to the closest extracted paragraph when Word comment anchors are available.
+- Preserves paragraph `runs` and `styleFlags` in generated blocks so red/italic drafting signals remain auditable by the app and by future export formats.
+- Preserves `docNumber` inside normal paragraphs and inside `outputBlocks` for `OU` alternatives so selected legal text keeps the original index structure in preview and export.
