@@ -9,9 +9,9 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Reverse Engineering
 
-- [ ] **REV-01**: O sistema deve documentar os padroes relevantes do Ger@AGU: formulario guiado, preview, notas explicativas, regras condicionais, validacoes e saida HTML.
-- [ ] **REV-02**: O sistema deve identificar quais partes do Ger@AGU podem inspirar a nova implementacao sem reutilizar chamadas externas ou codigo inseguro da captura.
-- [ ] **REV-03**: O sistema deve preservar a experiencia de exibicao de notas explicativas em contexto equivalente ao Ger@AGU.
+- [x] **REV-01**: O sistema deve documentar os padroes relevantes do Ger@AGU: formulario guiado, preview, notas explicativas, regras condicionais, validacoes e saida HTML.
+- [x] **REV-02**: O sistema deve identificar quais partes do Ger@AGU podem inspirar a nova implementacao sem reutilizar chamadas externas ou codigo inseguro da captura.
+- [x] **REV-03**: O sistema deve preservar a experiencia de exibicao de notas explicativas em contexto equivalente ao Ger@AGU.
 
 ### Model Extraction
 
@@ -74,9 +74,9 @@ Explicitly excluded. Documented to prevent scope creep.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| REV-01 | Phase 1 | Pending |
-| REV-02 | Phase 1 | Pending |
-| REV-03 | Phase 1 | Pending |
+| REV-01 | Phase 1 | Complete |
+| REV-02 | Phase 1 | Complete |
+| REV-03 | Phase 1 | Complete |
 | EXT-01 | Phase 2 | Pending |
 | EXT-02 | Phase 2 | Pending |
 | EXT-03 | Phase 2 | Pending |
@@ -106,4 +106,4 @@ Explicitly excluded. Documented to prevent scope creep.
 
 ---
 *Requirements defined: 2026-05-08*
-*Last updated: 2026-05-08 after initialization*
+*Last updated: 2026-05-08 after Phase 1 execution*

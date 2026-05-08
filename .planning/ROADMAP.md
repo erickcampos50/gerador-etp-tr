@@ -11,6 +11,8 @@ Goal: deliver a local browser-based tool that converts the current AGU Termo de 
 
 ## Phase 1: Reverse Engineer Ger@AGU Experience
 
+**Status:** Complete
+
 **Goal:** Understand the interaction patterns worth carrying into the TR generator without inheriting unsafe or irrelevant captured runtime behavior.
 
 **Covers:** REV-01, REV-02, REV-03
@@ -25,6 +27,12 @@ Goal: deliver a local browser-based tool that converts the current AGU Termo de 
 - There is a concise engineering note/spec explaining how the new app should emulate the useful Ger@AGU conveniences.
 - Risky inherited behaviors such as external endpoints and localStorage/session code are listed as non-goals.
 - The next phase has enough context to design the converter.
+
+**Delivered:**
+
+- `.planning/phases/01-reverse-engineer-geragu-experience/UX-PATTERNS.md`
+- `.planning/phases/01-reverse-engineer-geragu-experience/SAFETY-INVENTORY.md`
+- `.planning/phases/01-reverse-engineer-geragu-experience/PHASE-1-HANDOFF.md`
 
 **Plan:** `.planning/phases/01-reverse-engineer-geragu-experience/01-PLAN.md`
 
@@ -115,4 +123,4 @@ Goal: deliver a local browser-based tool that converts the current AGU Termo de 
 
 ## Next Command
 
-`/gsd-plan-phase 1`
+`/gsd-plan-phase 2`
