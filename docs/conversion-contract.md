@@ -34,16 +34,25 @@ The DOCX model in `Documentos modelo/` is the canonical source for extraction. T
 
 When classification is uncertain, the converter must preserve evidence and mark the item with `ambiguity_flags`. It must not silently choose legal meaning. Examples include red text without italics, inline `OU` markers, unclear note anchors and optional text spanning multiple paragraphs.
 
-## Representative Structured Seed
+## Generated Structured Model
 
-`app/model-data.js` contains a curated seed model for the local UI. It covers identification fields and the vigencia/prorrogacao `OU` example so downstream phases can build the guided authoring and output flow before full-model extraction is expanded.
+`app/model-data.js` is generated from the canonical DOCX. It contains the converted clause sections, explanatory comments, generated field candidates, inline alternatives and block alternatives.
 
 ## Extraction Tool
 
-`tools/extract_docx_model.py` extracts paragraph text, run styles, comments, placeholders, `OU` markers, role candidates and ambiguity flags from the DOCX using the Python standard library.
+`tools/extract_docx_model.py` extracts paragraph text, Word line breaks, run styles, comments, placeholders, `OU` markers, role candidates and ambiguity flags from the DOCX using the Python standard library. With `--model-js`, it also writes the browser model consumed by the local UI.
 
 Example:
 
 ```bash
 python3 tools/extract_docx_model.py "Documentos modelo/DOCX modelo-de-termo-de-contrato-servico-sem-mao-de-obra-exclusiva-lei-no-14-133-dez-25.docx" --sample 25
+python3 tools/extract_docx_model.py "Documentos modelo/DOCX modelo-de-termo-de-contrato-servico-sem-mao-de-obra-exclusiva-lei-no-14-133-dez-25.docx" --model-js app/model-data.js
 ```
+
+## Current Conversion Coverage
+
+- Converts 200 non-empty DOCX paragraphs into 19 clause/preamble sections.
+- Generates required fields for bracketed placeholders and common filler patterns such as `xxxx` and dotted blanks.
+- Converts standalone `OU` groups into required block choices so final output emits only the selected alternative.
+- Converts inline bracket alternatives into required radio choices embedded back into the paragraph template.
+- Converts DOCX comments into authoring-only notes attached to the closest extracted paragraph when Word comment anchors are available.
