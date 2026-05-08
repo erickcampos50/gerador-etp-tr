@@ -184,6 +184,13 @@
     return optionOutputBlocks(option).map((outputBlock) => String(outputBlock.text || ""));
   }
 
+  function sectionTitle(section) {
+    const title = String(section.title || "");
+    const docNumber = String(section.docNumber || "").trim();
+    if (!docNumber || title.startsWith(docNumber)) return title;
+    return `${docNumber} ${title}`;
+  }
+
   function appendPreviewParagraph(target, block, extraClass) {
     const p = document.createElement("p");
     p.className = blockClassName(block, extraClass);
@@ -486,7 +493,7 @@
 
       const header = document.createElement("div");
       header.className = "section-header";
-      header.innerHTML = `<h3>${escapeHtml(section.title)}</h3>`;
+      header.innerHTML = `<h3>${escapeHtml(sectionTitle(section))}</h3>`;
       card.appendChild(header);
 
       const body = document.createElement("div");
@@ -554,7 +561,7 @@
 
     model.sections.forEach((section) => {
       const heading = document.createElement("h2");
-      heading.textContent = section.title;
+      heading.textContent = sectionTitle(section);
       previewRoot.appendChild(heading);
 
       (section.blocks || []).forEach((block) => {
@@ -670,7 +677,7 @@
     parts.push(`<main class="print-document">`);
     parts.push(documentHeaderHtml());
     model.sections.forEach((section) => {
-      parts.push(`<h2>${escapeHtml(section.title)}</h2>`);
+      parts.push(`<h2>${escapeHtml(sectionTitle(section))}</h2>`);
       (section.blocks || []).forEach((block) => {
         if (block.type === "paragraph") {
           parts.push(finalParagraphHtml(block));

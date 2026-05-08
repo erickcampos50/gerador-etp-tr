@@ -50,6 +50,43 @@ def main() -> int:
     actual = [(block.get("docNumber"), block.get("text")) for block in output_blocks if "PCA" in block.get("text", "") or "PNCP" in block.get("text", "") or "Classe/Grupo" in block.get("text", "") or "Identificador" in block.get("text", "")]
     assert actual[:5] == expected, f"PCA output blocks changed: {actual[:5]!r}"
 
+    description_section = next(
+        section
+        for section in model["sections"]
+        if "DESCRIÇÃO DA SOLUÇÃO" in section["title"]
+    )
+    assert description_section.get("docNumber") == "3.", "section 3 heading number was not preserved"
+    description_block = next(
+        block
+        for block in description_section["blocks"]
+        if block.get("sourceIndex") == 38
+    )
+    assert description_block.get("docNumber") == "3.1.", "paragraph 3.1 number was not preserved"
+
+    requirements_section = next(
+        section
+        for section in model["sections"]
+        if "REQUISITOS DA CONTRATAÇÃO" in section["title"]
+    )
+    assert requirements_section.get("docNumber") == "4.", "section 4 heading number was not preserved"
+    expected_requirements = {
+        40: ("", "Sustentabilidade"),
+        41: ("4.1.", "Além dos critérios de sustentabilidade"),
+        42: ("4.1.1", "{{field_campo_42_1}};"),
+        43: ("4.1.2", "{{field_campo_43_1}}; e"),
+        44: ("4.1.3", "{{field_campo_44_1}}."),
+    }
+    fixed_blocks = {
+        block.get("sourceIndex"): block
+        for block in requirements_section["blocks"]
+        if block.get("type") == "paragraph"
+    }
+    for source_index, (doc_number, text_start) in expected_requirements.items():
+        block = fixed_blocks.get(source_index)
+        assert block is not None, f"paragraph {source_index} should be fixed in section 4, not hidden inside an OU choice"
+        assert block.get("docNumber") == doc_number, f"paragraph {source_index} number changed"
+        assert str(block.get("text", "")).startswith(text_start), f"paragraph {source_index} text changed"
+
     assert any(
         block.get("runs")
         for section in model["sections"]

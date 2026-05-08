@@ -348,6 +348,42 @@ class ModelBuilder:
     def is_ou_block(block: dict[str, object]) -> bool:
         return block.get("type") == "paragraph" and normalize_space(str(block.get("text", ""))).upper() == "OU"
 
+    @staticmethod
+    def has_doc_number(block: dict[str, object]) -> bool:
+        return bool(str(block.get("docNumber", "")).strip())
+
+    @staticmethod
+    def is_unnumbered_paragraph(block: dict[str, object]) -> bool:
+        return block.get("type") == "paragraph" and not ModelBuilder.has_doc_number(block)
+
+    def take_previous_alternative(self, result: list[dict[str, object]]) -> list[dict[str, object]]:
+        if not result or result[-1].get("type") != "paragraph":
+            return []
+        if not self.has_doc_number(result[-1]):
+            return [result.pop()]
+        previous: list[dict[str, object]] = []
+        while result and result[-1].get("type") == "paragraph" and self.has_doc_number(result[-1]):
+            previous.insert(0, result.pop())
+        return previous
+
+    def take_next_alternative(
+        self,
+        blocks: list[dict[str, object]],
+        index: int,
+    ) -> tuple[list[dict[str, object]], int]:
+        current: list[dict[str, object]] = []
+        seen_numbered = False
+        while index < len(blocks):
+            block = blocks[index]
+            if self.is_ou_block(block):
+                break
+            if current and seen_numbered and self.is_unnumbered_paragraph(block):
+                break
+            current.append(block)
+            seen_numbered = seen_numbered or self.has_doc_number(block)
+            index += 1
+        return current, index
+
     def group_ou_blocks(self, blocks: list[dict[str, object]], section_title: str) -> list[dict[str, object]]:
         result: list[dict[str, object]] = []
         i = 0
@@ -357,16 +393,11 @@ class ModelBuilder:
                 result.append(block)
                 i += 1
                 continue
-            previous: list[dict[str, object]] = []
-            while result and result[-1].get("type") == "paragraph":
-                previous.insert(0, result.pop())
+            previous = self.take_previous_alternative(result)
             alt = [previous] if previous else []
             while i < len(blocks) and self.is_ou_block(blocks[i]):
                 i += 1
-                current: list[dict[str, object]] = []
-                while i < len(blocks) and not self.is_ou_block(blocks[i]):
-                    current.append(blocks[i])
-                    i += 1
+                current, i = self.take_next_alternative(blocks, i)
                 if current:
                     alt.append(current)
             if len(alt) >= 2:
@@ -387,14 +418,14 @@ class ModelBuilder:
                  for cid, text in sorted(comments.items(), key=lambda item: int(item[0]))]
 
         sections: list[dict[str, object]] = []
-        current = {"id": "preambulo", "title": "Preambulo", "blocks": []}
+        current = {"id": "preambulo", "title": "Preambulo", "docNumber": "", "blocks": []}
         for paragraph in paragraphs[1:]:
             text = str(paragraph["text"])
             if self.is_clause_heading(text):
                 current["blocks"] = self.group_ou_blocks(current["blocks"], str(current["title"]))
                 if current["blocks"]:
                     sections.append(current)
-                current = {"id": f"sec_html_{paragraph['index']}", "title": text, "blocks": []}
+                current = {"id": f"sec_html_{paragraph['index']}", "title": text, "docNumber": "", "blocks": []}
                 continue
             current["blocks"].append(self.paragraph_block(paragraph))
         current["blocks"] = self.group_ou_blocks(current["blocks"], str(current["title"]))

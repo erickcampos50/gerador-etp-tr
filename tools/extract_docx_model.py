@@ -84,6 +84,91 @@ def load_part_texts(zf: zipfile.ZipFile, prefix: str) -> list[dict[str, str]]:
     return parts
 
 
+def attr_val(element: ET.Element | None) -> str | None:
+    if element is None:
+        return None
+    return element.attrib.get(qname("val"))
+
+
+def num_pr_values(p_pr: ET.Element | None) -> dict[str, str]:
+    if p_pr is None:
+        return {}
+    num_pr = p_pr.find(qname("numPr"))
+    if num_pr is None:
+        return {}
+    values: dict[str, str] = {}
+    num_id = attr_val(num_pr.find(qname("numId")))
+    ilvl = attr_val(num_pr.find(qname("ilvl")))
+    if num_id is not None:
+        values["numId"] = num_id
+    if ilvl is not None:
+        values["ilvl"] = ilvl
+    return values
+
+
+def load_paragraph_styles(zf: zipfile.ZipFile) -> dict[str, dict[str, str | None]]:
+    try:
+        raw = zf.read("word/styles.xml")
+    except KeyError:
+        return {}
+
+    root = ET.fromstring(raw)
+    styles: dict[str, dict[str, str | None]] = {}
+    for style in root.findall(qname("style")):
+        if style.attrib.get(qname("type")) != "paragraph":
+            continue
+        style_id = style.attrib.get(qname("styleId"))
+        if not style_id:
+            continue
+        based_on = attr_val(style.find(qname("basedOn")))
+        p_pr = style.find(qname("pPr"))
+        num_values = num_pr_values(p_pr)
+        styles[style_id] = {
+            "basedOn": based_on,
+            "numId": num_values.get("numId"),
+            "ilvl": num_values.get("ilvl"),
+        }
+    return styles
+
+
+def resolve_style_numbering(
+    style_id: str | None,
+    styles: dict[str, dict[str, str | None]],
+    seen: set[str] | None = None,
+) -> dict[str, str]:
+    if not style_id:
+        return {}
+    if seen is None:
+        seen = set()
+    if style_id in seen:
+        return {}
+    seen.add(style_id)
+
+    style = styles.get(style_id)
+    if not style:
+        return {}
+
+    resolved = resolve_style_numbering(style.get("basedOn"), styles, seen)
+    if style.get("numId") is not None:
+        resolved["numId"] = str(style["numId"])
+    if style.get("ilvl") is not None:
+        resolved["ilvl"] = str(style["ilvl"])
+    return resolved
+
+
+def paragraph_style_id(p_pr: ET.Element | None) -> str | None:
+    if p_pr is None:
+        return None
+    return attr_val(p_pr.find(qname("pStyle")))
+
+
+def safe_int(value: str, fallback: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return fallback
+
+
 def normalize_space(value: str) -> str:
     return re.sub(r"\s+", " ", value).strip()
 
@@ -188,31 +273,42 @@ class NumberingTracker:
         if fmt in ("bullet", "none"):
             return ""
 
+        counter_id = self.counter_id(num_id, an_id, levels)
+        level = safe_int(ilvl)
+
         # Reset all deeper levels
-        for l in range(int(ilvl) + 1, 9):
-            self.counters.pop((num_id, str(l)), None)
+        for l in range(level + 1, 9):
+            self.counters.pop((counter_id, str(l)), None)
 
         # Increment this level
-        key = (num_id, ilvl)
-        start = int(lvl_info.get("start", "1") or "1")
+        key = (counter_id, ilvl)
+        start = safe_int(lvl_info.get("start", "1") or "1", 1)
         self.counters[key] = self.counters.get(key, start - 1) + 1
-        count = self.counters[key]
 
         # Also ensure parent levels have at least 1 (for formatting)
-        for l in range(int(ilvl)):
-            pk = (num_id, str(l))
+        for l in range(level):
+            level_key = str(l)
+            pk = (counter_id, level_key)
             if pk not in self.counters:
-                self.counters[pk] = 1
+                parent_info = levels.get(level_key, {})
+                self.counters[pk] = safe_int(parent_info.get("start", "1") or "1", 1)
 
         # Format using template
         template = lvl_info.get("text", "%1.")
         for l in range(9):
             placeholder = f"%{l + 1}"
-            ck = (num_id, str(l))
+            ck = (counter_id, str(l))
             level_fmt = levels.get(str(l), {}).get("fmt", "decimal")
             val = format_number(self.counters.get(ck, 0), level_fmt)
             template = template.replace(placeholder, val)
         return template
+
+    def counter_id(self, num_id: str, abstract_num_id: str, levels: dict[str, dict[str, str]]) -> str:
+        has_bound_styles = any(info.get("style") for info in levels.values())
+        has_hierarchical_text = any("%1.%2" in str(info.get("text", "")) for info in levels.values())
+        if has_bound_styles and has_hierarchical_text:
+            return f"abstract:{abstract_num_id}"
+        return f"num:{num_id}"
 
 
 def parse_document(docx_path: Path) -> dict[str, object]:
@@ -221,6 +317,7 @@ def parse_document(docx_path: Path) -> dict[str, object]:
         comments = load_comments(zf)
         headers = load_part_texts(zf, "word/header")
         footers = load_part_texts(zf, "word/footer")
+        paragraph_styles = load_paragraph_styles(zf)
         root = ET.fromstring(document_xml)
         try:
             num_xml = zf.read("word/numbering.xml")
@@ -248,10 +345,12 @@ def parse_document(docx_path: Path) -> dict[str, object]:
                 nf = lvl.find(qname("numFmt"))
                 lt = lvl.find(qname("lvlText"))
                 st = lvl.find(qname("start"))
+                ps = lvl.find(qname("pStyle"))
                 levels[ilvl] = {
                     "fmt": nf.attrib.get(qname("val")) if nf is not None else "",
                     "text": lt.attrib.get(qname("val")) if lt is not None else "%1.",
                     "start": st.attrib.get(qname("val")) if st is not None else "1",
+                    "style": ps.attrib.get(qname("val")) if ps is not None else "",
                 }
             numbering[an_id] = levels
         for n in num_root.findall(qname("num")):
@@ -314,14 +413,12 @@ def parse_document(docx_path: Path) -> dict[str, object]:
         pPr = child.find(qname("pPr"))
         doc_number = ""
         if pPr is not None:
-            numPr = pPr.find(qname("numPr"))
-            if numPr is not None:
-                nid = numPr.find(qname("numId"))
-                ilvl = numPr.find(qname("ilvl"))
-                nid_val = nid.attrib.get(qname("val")) if nid is not None else None
-                ilvl_val = ilvl.attrib.get(qname("val")) if ilvl is not None else None
-                if nid_val is not None and ilvl_val is not None:
-                    doc_number = tracker.next_number(nid_val, ilvl_val, numbering, num_map)
+            numbering_values = num_pr_values(pPr)
+            style_numbering = resolve_style_numbering(paragraph_style_id(pPr), paragraph_styles)
+            nid_val = numbering_values.get("numId") or style_numbering.get("numId")
+            ilvl_val = numbering_values.get("ilvl") or style_numbering.get("ilvl")
+            if nid_val is not None and ilvl_val is not None:
+                doc_number = tracker.next_number(nid_val, ilvl_val, numbering, num_map)
 
         paragraphs.append(
             {
@@ -496,6 +593,44 @@ class ModelBuilder:
     def is_ou_block(block: dict[str, object]) -> bool:
         return block.get("type") == "paragraph" and normalize_space(str(block.get("text", ""))).upper() == "OU"
 
+    @staticmethod
+    def has_doc_number(block: dict[str, object]) -> bool:
+        return bool(str(block.get("docNumber", "")).strip())
+
+    @staticmethod
+    def is_unnumbered_paragraph(block: dict[str, object]) -> bool:
+        return block.get("type") == "paragraph" and not ModelBuilder.has_doc_number(block)
+
+    def take_previous_alternative(self, result: list[dict[str, object]]) -> list[dict[str, object]]:
+        if not result or result[-1].get("type") != "paragraph":
+            return []
+
+        if not self.has_doc_number(result[-1]):
+            return [result.pop()]
+
+        previous: list[dict[str, object]] = []
+        while result and result[-1].get("type") == "paragraph" and self.has_doc_number(result[-1]):
+            previous.insert(0, result.pop())
+        return previous
+
+    def take_next_alternative(
+        self,
+        blocks: list[dict[str, object]],
+        index: int,
+    ) -> tuple[list[dict[str, object]], int]:
+        current: list[dict[str, object]] = []
+        seen_numbered = False
+        while index < len(blocks):
+            block = blocks[index]
+            if self.is_ou_block(block):
+                break
+            if current and seen_numbered and self.is_unnumbered_paragraph(block):
+                break
+            current.append(block)
+            seen_numbered = seen_numbered or self.has_doc_number(block)
+            index += 1
+        return current, index
+
     def group_ou_blocks(self, blocks: list[dict[str, object]], section_title: str) -> list[dict[str, object]]:
         result: list[dict[str, object]] = []
         index = 0
@@ -506,17 +641,12 @@ class ModelBuilder:
                 index += 1
                 continue
 
-            previous: list[dict[str, object]] = []
-            while result and result[-1].get("type") == "paragraph":
-                previous.insert(0, result.pop())
+            previous = self.take_previous_alternative(result)
             alternatives = [previous] if previous else []
 
             while index < len(blocks) and self.is_ou_block(blocks[index]):
                 index += 1
-                current: list[dict[str, object]] = []
-                while index < len(blocks) and not self.is_ou_block(blocks[index]):
-                    current.append(blocks[index])
-                    index += 1
+                current, index = self.take_next_alternative(blocks, index)
                 if current:
                     alternatives.append(current)
 
@@ -607,7 +737,7 @@ class ModelBuilder:
             table_idx += 1
 
         sections: list[dict[str, object]] = []
-        current = {"id": "preambulo", "title": "Preambulo", "blocks": []}
+        current = {"id": "preambulo", "title": "Preambulo", "docNumber": "", "blocks": []}
         for item in all_items[1:]:
             if item["type"] == "paragraph":
                 text = str(item.get("text", ""))
@@ -615,7 +745,12 @@ class ModelBuilder:
                     current["blocks"] = self.group_ou_blocks(current["blocks"], str(current["title"]))
                     if current["blocks"]:
                         sections.append(current)
-                    current = {"id": f"sec_{item['id']}", "title": text, "blocks": []}
+                    current = {
+                        "id": f"sec_{item['id']}",
+                        "title": text,
+                        "docNumber": str(item.get("docNumber", "")),
+                        "blocks": [],
+                    }
                     continue
             current["blocks"].append(item)
 
