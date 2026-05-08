@@ -26,6 +26,20 @@ Goal: deliver a local browser-based tool that converts the current AGU Termo de 
 - Risky inherited behaviors such as external endpoints and localStorage/session code are listed as non-goals.
 - The next phase has enough context to design the converter.
 
+**Plan:** `.planning/phases/01-reverse-engineer-geragu-experience/01-PLAN.md`
+
+**Wave 1:** Documentation and handoff
+
+- Create `UX-PATTERNS.md` to capture reusable Ger@AGU authoring patterns.
+- Create `SAFETY-INVENTORY.md` to define unsafe captured behavior and reuse boundaries.
+- Create `PHASE-1-HANDOFF.md` to pass converter metadata and note/output contracts to Phase 2.
+
+**Cross-cutting constraints:**
+
+- Phase 1 remains documentation-only and must not implement app or converter code.
+- Original Ger@AGU backend/session/API/localStorage behavior must not be reused.
+- Ger@AGU is UX evidence only; `Documentos modelo/` remains the TR source of truth.
+
 ## Phase 2: Build TR Model Extraction Contract
 
 **Goal:** Define and implement the conversion layer from the current DOCX/HTML model into structured data usable by the app.
