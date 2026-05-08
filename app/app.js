@@ -8,6 +8,7 @@
     excluded: {},
     tableData: {}
   };
+  let suppressPreviewFocusSync = false;
 
   const formRoot = document.getElementById("form-root");
   const previewRoot = document.getElementById("preview-root");
@@ -98,7 +99,7 @@
       item.textContent = message.text;
       validationList.appendChild(item);
     });
-    exportButton.disabled = messages.some((message) => message.type === "error");
+    exportButton.disabled = false;
   }
 
   function noteButton(noteId) {
@@ -113,7 +114,42 @@
 
   function scrollToPreviewBlock(blockId) {
     const el = document.getElementById(`preview-${blockId}`);
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (!el) return;
+    const panel = document.querySelector(".panel.preview");
+    if (!panel) return;
+    const re = el.getBoundingClientRect();
+    const rc = panel.getBoundingClientRect();
+    panel.scrollTop += re.top - rc.top - rc.height / 2 + re.height / 2;
+  }
+
+  function scrollControlsToTarget(target, alignTo) {
+    const controls = document.querySelector(".controls");
+    if (!controls || !target) return false;
+    const targetRect = target.getBoundingClientRect();
+    if (alignTo) {
+      const sourceRect = alignTo.getBoundingClientRect();
+      controls.scrollTo({ top: controls.scrollTop + targetRect.top - sourceRect.top, behavior: "smooth" });
+      return true;
+    }
+    const controlsRect = controls.getBoundingClientRect();
+    controls.scrollTop += targetRect.top - controlsRect.top - controlsRect.height / 2 + targetRect.height / 2;
+    return true;
+  }
+
+  function highlightFormTarget(target) {
+    target.style.boxShadow = "0 0 0 2px var(--accent)";
+    setTimeout(() => { target.style.boxShadow = ""; }, 1500);
+  }
+
+  function focusWithoutPreviewSync(input) {
+    suppressPreviewFocusSync = true;
+    try {
+      input.focus({ preventScroll: true });
+    } catch (err) {
+      input.focus();
+    }
+    input.select();
+    requestAnimationFrame(() => { suppressPreviewFocusSync = false; });
   }
 
   function toggleExcluded(id) {
@@ -128,6 +164,7 @@
     const group = document.createElement("div");
     group.className = "field-group";
     group.dataset.fieldId = field.id;
+    group.dataset.blockId = block.id;
     if (state.excluded[field.id]) group.classList.add("excluded");
 
     const label = document.createElement("label");
@@ -158,11 +195,14 @@
     input.type = "text";
     input.placeholder = field.placeholder || "";
     input.value = state.fields[field.id] || "";
+    function syncPreview() {
+      if (!suppressPreviewFocusSync) scrollToPreviewBlock(block.id);
+    }
+    input.addEventListener("focus", syncPreview);
     input.addEventListener("input", (e) => {
       state.fields[field.id] = e.target.value.trim();
       renderPreview();
       renderValidation();
-      scrollToPreviewBlock(block.id);
     });
     group.appendChild(input);
 
@@ -178,6 +218,7 @@
     const group = document.createElement("fieldset");
     group.className = "choice-group";
     group.dataset.fieldId = choice.id;
+    group.dataset.blockId = block.id;
     if (state.excluded[choice.id]) group.classList.add("excluded");
 
     const legend = document.createElement("legend");
@@ -202,6 +243,10 @@
 
     group.appendChild(legend);
 
+    function syncPreview() {
+      if (!suppressPreviewFocusSync) scrollToPreviewBlock(block.id);
+    }
+
     choice.options.forEach((option) => {
       const optionId = `choice-${choice.id}-${option.value}`;
       const wrapper = document.createElement("label");
@@ -212,11 +257,11 @@
       radio.name = choice.id;
       radio.value = option.value;
       if (state.choices[choice.id] === option.value) radio.checked = true;
+      radio.addEventListener("focus", syncPreview);
       radio.addEventListener("change", () => {
         state.choices[choice.id] = option.value;
-        renderPreview(block.id);
+        renderPreview();
         renderValidation();
-        scrollToPreviewBlock(block.id);
       });
       wrapper.appendChild(radio);
       const span = document.createElement("span");
@@ -236,14 +281,16 @@
   function makeTableEditor(tableBlock) {
     const container = document.createElement("div");
     container.className = "table-editor";
+    container.dataset.blockId = tableBlock.id;
     if (state.excluded[tableBlock.id]) container.classList.add("excluded");
+    const data = state.tableData[tableBlock.id] || tableBlock.rows.map((r) => [...r]);
 
     const labelRow = document.createElement("div");
     labelRow.className = "field-label-row";
 
     const label = document.createElement("span");
     label.className = "table-label";
-    label.textContent = `Tabela (${tableBlock.rows ? tableBlock.rows.length : 0} linhas)`;
+    label.textContent = `Tabela (${data.length} linhas)`;
     labelRow.appendChild(label);
 
     const toggle = document.createElement("button");
@@ -263,7 +310,6 @@
 
     const miniTable = document.createElement("table");
     miniTable.className = "mini-table";
-    const data = state.tableData[tableBlock.id] || tableBlock.rows.map((r) => [...r]);
 
     function renderMiniTable() {
       miniTable.innerHTML = "";
@@ -299,9 +345,10 @@
     addRowBtn.type = "button";
     addRowBtn.textContent = "+ linha";
     addRowBtn.addEventListener("click", () => {
-      const cols = data[0] ? data[0].length : 1;
+      const cols = Math.max(1, ...data.map((row) => (row || []).length));
       data.push(new Array(cols).fill(""));
       state.tableData[tableBlock.id] = data;
+      label.textContent = `Tabela (${data.length} linhas)`;
       renderMiniTable();
       renderPreview();
     });
@@ -384,39 +431,6 @@
         formRoot.appendChild(card);
       }
     });
-
-    setupCollapseObserver();
-  }
-
-  function setupCollapseObserver() {
-    if (window._collapseObserver) window._collapseObserver.disconnect();
-    const cards = document.querySelectorAll(".section-card");
-    if (!cards.length) return;
-
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        const body = entry.target.querySelector(".section-body");
-        if (!body) return;
-        if (entry.intersectionRatio < 0.05 && entry.boundingClientRect.top < 0) {
-          body.style.maxHeight = "0";
-          body.style.overflow = "hidden";
-          body.style.paddingTop = "0";
-          body.style.paddingBottom = "0";
-          body.style.opacity = "0";
-          entry.target.classList.add("collapsed");
-        } else if (entry.intersectionRatio > 0.1) {
-          body.style.maxHeight = "";
-          body.style.overflow = "";
-          body.style.paddingTop = "";
-          body.style.paddingBottom = "";
-          body.style.opacity = "1";
-          entry.target.classList.remove("collapsed");
-        }
-      });
-    }, { threshold: [0, 0.05, 0.1, 0.5, 1] });
-
-    cards.forEach((card) => observer.observe(card));
-    window._collapseObserver = observer;
   }
 
   function renderPreview(focusBlockId) {
@@ -433,24 +447,27 @@
       (section.blocks || []).forEach((block) => {
         const wrapper = document.createElement("div");
         wrapper.id = `preview-${block.id}`;
+        wrapper.dataset.previewBlockId = block.id;
         wrapper.dataset.sectionId = section.id;
 
         if (block.type === "paragraph") {
+          if (state.excluded[block.id]) return;
+          const p = document.createElement("p");
           if (block.docNumber) {
             const idx = document.createElement("span");
             idx.className = "p-index";
             idx.textContent = block.docNumber + " ";
-            idx.title = "Ir para este trecho no formulario";
-            idx.addEventListener("click", () => focusFormSection(section.id));
-            wrapper.appendChild(idx);
+            p.appendChild(idx);
           }
-
-          const p = document.createElement("p");
-          p.innerHTML = renderTemplate(block.text);
+          const textSpan = document.createElement("span");
+          textSpan.innerHTML = renderTemplate(block.text);
+          p.appendChild(textSpan);
           wrapper.appendChild(p);
+          (block.noteIds || []).forEach((nid) => wrapper.appendChild(noteButton(nid)));
         }
 
         if (block.type === "table") {
+          if (state.excluded[block.id]) return;
           const data = state.tableData[block.id] || block.rows;
           const table = document.createElement("table");
           table.className = "preview-table";
@@ -477,6 +494,7 @@
           } else {
             selected.output.forEach((text) => {
               const p = document.createElement("p");
+              p.className = "conditional-output";
               p.innerHTML = renderTemplate(text);
               wrapper.appendChild(p);
             });
@@ -490,37 +508,27 @@
     if (focusBlockId) scrollToPreviewBlock(focusBlockId);
   }
 
-  function focusFormSection(sectionId) {
-    const card = document.querySelector(`.section-card[data-section-id="${sectionId}"]`);
-    if (!card) return;
-    const body = card.querySelector(".section-body");
-    if (body) {
-      body.style.maxHeight = "";
-      body.style.overflow = "";
-      body.style.paddingTop = "";
-      body.style.paddingBottom = "";
-      body.style.opacity = "1";
-      card.classList.remove("collapsed");
-    }
-    const controls = document.querySelector(".controls");
-    if (controls) {
-      const top = card.getBoundingClientRect().top - controls.getBoundingClientRect().top + controls.scrollTop - 12;
-      controls.scrollTo({ top, behavior: "smooth" });
-    }
-    card.style.boxShadow = "0 0 0 2px var(--accent)";
-    setTimeout(() => { card.style.boxShadow = ""; }, 1500);
+  function focusFormField(fieldId, alignTo) {
+    const el = formRoot.querySelector(`[data-field-id="${fieldId}"]`);
+    if (!el) return;
+    scrollControlsToTarget(el, alignTo);
+    const input = el.querySelector("input");
+    if (input) focusWithoutPreviewSync(input);
+    highlightFormTarget(el);
   }
 
-  function focusFormField(fieldId) {
-    const el = document.querySelector(`[data-field-id="${fieldId}"]`);
-    if (!el) return;
-    const controls = document.querySelector(".controls");
-    if (controls) {
-      const top = el.getBoundingClientRect().top - controls.getBoundingClientRect().top + controls.scrollTop - 12;
-      controls.scrollTo({ top, behavior: "smooth" });
-    }
-    el.style.boxShadow = "0 0 0 2px var(--accent)";
-    setTimeout(() => { el.style.boxShadow = ""; }, 1500);
+  function findFormSectionForPreviewBlock(previewBlock) {
+    const blockId = previewBlock.dataset.previewBlockId;
+    const blockTarget = formRoot.querySelector(`[data-block-id="${blockId}"]`);
+    if (blockTarget) return blockTarget.closest(".section-card") || blockTarget;
+    return formRoot.querySelector(`.section-card[data-section-id="${previewBlock.dataset.sectionId}"]`);
+  }
+
+  function alignFormSectionToPreview(previewBlock, alignTo) {
+    const target = findFormSectionForPreviewBlock(previewBlock);
+    if (!target) return;
+    scrollControlsToTarget(target, alignTo || previewBlock);
+    highlightFormTarget(target);
   }
 
   function showNote(noteId) {
@@ -546,7 +554,8 @@
       const choice = findChoice(id);
       if (choice) {
         const selected = choice.options.find((option) => option.value === state.choices[id]);
-        return escapeHtml(selected ? selected.label : `[${choice.label}]`);
+        const label = escapeHtml(selected ? selected.label : `[${choice.label}]`);
+        return selected ? `<span class="conditional-output">${label}</span>` : label;
       }
       const value = state.fields[id];
       const field = findField(id);
@@ -582,7 +591,7 @@
           const choice = findChoice(block.choiceId);
           const selected = choice.options.find((option) => option.value === state.choices[choice.id]);
           if (selected) {
-            selected.output.forEach((text) => parts.push(`<p>${cleanTemplate(text)}</p>`));
+            selected.output.forEach((text) => parts.push(`<p class="conditional-output">${cleanTemplate(text)}</p>`));
           }
         }
       });
@@ -593,10 +602,6 @@
   }
 
   function generateFinalHtml() {
-    const errors = validationMessages().filter((message) => message.type === "error");
-    if (errors.length) {
-      return { ok: false, errors };
-    }
     const html = `<!doctype html>
 <html lang="pt-BR">
 <head>
@@ -607,6 +612,7 @@
     h1 { font-size: 14pt; text-align: center; text-transform: uppercase; margin-bottom: 1.5em; }
     h2 { font-size: 12pt; margin-top: 1.5rem; margin-bottom: 0.5rem; text-transform: uppercase; }
     p { margin: 0.4em 0; text-align: justify; }
+    .conditional-output { background: #ffd6d6; color: #990000; font-style: italic; padding: 0 0.15rem; }
     footer { border-top: 1px solid #999; margin-top: 2rem; padding-top: 0.5rem; font-size: 9pt; color: #555; }
     @media print { body { margin: 1.5cm; } }
   </style>
@@ -620,11 +626,6 @@ ${finalDocumentBody()}
 
   function downloadPrintableHtml() {
     const result = generateFinalHtml();
-    if (!result.ok) {
-      renderValidation();
-      alert(`Resolva as pendencias antes de gerar o HTML:\n\n${result.errors.map((e) => e.text).join("\n")}`);
-      return;
-    }
     const blob = new Blob([result.html], { type: "text/html;charset=utf-8" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
@@ -646,9 +647,17 @@ ${finalDocumentBody()}
 
   previewRoot.addEventListener("click", (e) => {
     const fieldEl = e.target.closest("[data-field-id]");
+    const sourceEl = e.target.closest("p, table") || e.target;
     if (fieldEl) {
       e.stopPropagation();
-      focusFormField(fieldEl.dataset.fieldId);
+      focusFormField(fieldEl.dataset.fieldId, sourceEl);
+      return;
+    }
+
+    const previewBlock = e.target.closest("[data-preview-block-id]");
+    if (previewBlock) {
+      e.stopPropagation();
+      alignFormSectionToPreview(previewBlock, sourceEl);
     }
   });
 }());
