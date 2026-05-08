@@ -499,6 +499,33 @@ mark {
   opacity: 0.55;
 }
 
+#edit-preview-button[aria-pressed="true"] {
+  background: var(--accent-strong);
+  color: #fff;
+}
+
+.preview-editing .editable-content,
+.preview-editing h2,
+.preview-editing .preview-table th,
+.preview-editing .preview-table td {
+  cursor: text;
+  outline: 1px dashed rgba(49, 92, 116, 0.35);
+  outline-offset: 2px;
+}
+
+.preview-editing .editable-content:focus,
+.preview-editing h2:focus,
+.preview-editing .preview-table th:focus,
+.preview-editing .preview-table td:focus {
+  background: #fffef4;
+  box-shadow: 0 0 0 2px rgba(49, 92, 116, 0.2);
+  outline: 1px solid var(--accent);
+}
+
+.manual-edit {
+  box-shadow: inset 0 -1px 0 rgba(49, 92, 116, 0.35);
+}
+
 /* Note Dialog */
 .note-dialog {
   max-width: min(44rem, 90vw);

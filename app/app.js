@@ -6,7 +6,10 @@
     fields: {},
     choices: {},
     excluded: {},
-    tableData: {}
+    tableData: {},
+    previewEdits: {},
+    sectionTitleEdits: {},
+    previewEditing: false
   };
   let suppressPreviewFocusSync = false;
 
@@ -15,6 +18,7 @@
   const validationList = document.getElementById("validation-list");
   const modelMeta = document.getElementById("model-meta");
   const exportButton = document.getElementById("export-button");
+  const editPreviewButton = document.getElementById("edit-preview-button");
   const noteDialog = document.getElementById("note-dialog");
   const noteBody = document.getElementById("note-body");
 
@@ -156,6 +160,132 @@
     return value ? ` class="${escapeHtml(value)}"` : "";
   }
 
+  function hasOwn(object, key) {
+    return Object.prototype.hasOwnProperty.call(object, key);
+  }
+
+  function sanitizeEditableHtml(html) {
+    const allowedSpanClasses = new Set(["conditional-output", "variable-output", "semantic-review"]);
+    const template = document.createElement("template");
+    template.innerHTML = String(html || "");
+
+    function sanitizeNode(node) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return escapeHtml(node.textContent || "");
+      }
+      if (node.nodeType !== Node.ELEMENT_NODE) {
+        return "";
+      }
+
+      const tag = node.tagName.toLowerCase();
+      if (tag === "br") return "<br>";
+      const children = Array.from(node.childNodes).map(sanitizeNode).join("");
+      if (["mark", "strong", "b", "em", "i", "u"].includes(tag)) {
+        return `<${tag}>${children}</${tag}>`;
+      }
+      if (tag === "span") {
+        const classes = Array.from(node.classList).filter((cls) => allowedSpanClasses.has(cls));
+        const classHtml = classes.length ? ` class="${classes.map(escapeHtml).join(" ")}"` : "";
+        return classHtml ? `<span${classHtml}>${children}</span>` : children;
+      }
+      if (tag === "div" || tag === "p") {
+        return children ? `${children}<br>` : "";
+      }
+      return children;
+    }
+
+    return Array.from(template.content.childNodes).map(sanitizeNode).join("");
+  }
+
+  function insertPlainText(text) {
+    if (document.queryCommandSupported && document.queryCommandSupported("insertText")) {
+      document.execCommand("insertText", false, text);
+      return;
+    }
+    const selection = window.getSelection();
+    if (!selection || !selection.rangeCount) return;
+    selection.deleteFromDocument();
+    selection.getRangeAt(0).insertNode(document.createTextNode(text));
+    selection.collapseToEnd();
+  }
+
+  function handleEditablePaste(event) {
+    event.preventDefault();
+    const text = event.clipboardData ? event.clipboardData.getData("text/plain") : "";
+    insertPlainText(text);
+  }
+
+  function handleEditableKeydown(event) {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    if (document.queryCommandSupported && document.queryCommandSupported("insertLineBreak")) {
+      document.execCommand("insertLineBreak");
+      return;
+    }
+    const selection = window.getSelection();
+    if (!selection || !selection.rangeCount) return;
+    selection.deleteFromDocument();
+    selection.getRangeAt(0).insertNode(document.createElement("br"));
+    selection.collapseToEnd();
+  }
+
+  function editKey(kind, id) {
+    return `${kind}:${id}`;
+  }
+
+  function editedHtml(key, fallbackHtml) {
+    if (!hasOwn(state.previewEdits, key)) return fallbackHtml;
+    return sanitizeEditableHtml(state.previewEdits[key]);
+  }
+
+  function bindEditableHtml(element, key) {
+    element.contentEditable = state.previewEditing ? "true" : "false";
+    element.spellcheck = true;
+    element.dataset.editKey = key;
+    if (hasOwn(state.previewEdits, key)) element.classList.add("manual-edit");
+    if (!state.previewEditing) return;
+    element.addEventListener("paste", handleEditablePaste);
+    element.addEventListener("keydown", handleEditableKeydown);
+    element.addEventListener("input", () => {
+      state.previewEdits[key] = element.innerHTML;
+      element.classList.add("manual-edit");
+    });
+    element.addEventListener("blur", () => {
+      state.previewEdits[key] = sanitizeEditableHtml(element.innerHTML);
+      element.innerHTML = state.previewEdits[key];
+    });
+  }
+
+  function displaySectionTitle(section) {
+    return hasOwn(state.sectionTitleEdits, section.id) ? state.sectionTitleEdits[section.id] : sectionTitle(section);
+  }
+
+  function bindEditableTitle(element, section) {
+    element.contentEditable = state.previewEditing ? "true" : "false";
+    element.spellcheck = true;
+    if (hasOwn(state.sectionTitleEdits, section.id)) element.classList.add("manual-edit");
+    if (!state.previewEditing) return;
+    element.addEventListener("paste", handleEditablePaste);
+    element.addEventListener("keydown", handleEditableKeydown);
+    element.addEventListener("input", () => {
+      state.sectionTitleEdits[section.id] = element.textContent.replace(/\s+/g, " ").trim();
+      element.classList.add("manual-edit");
+    });
+  }
+
+  function tableDataFor(tableBlock) {
+    if (!state.tableData[tableBlock.id]) {
+      state.tableData[tableBlock.id] = tableBlock.rows.map((row) => [...row]);
+    }
+    return state.tableData[tableBlock.id];
+  }
+
+  function updateEditButton() {
+    editPreviewButton.textContent = state.previewEditing ? "Concluir edição" : "Editar resultado";
+    editPreviewButton.setAttribute("aria-pressed", String(state.previewEditing));
+    previewRoot.classList.toggle("preview-editing", state.previewEditing);
+  }
+
   function templateToDisplayText(template) {
     return String(template).replace(/\{\{([^}]+)\}\}/g, (match, rawId) => {
       const id = rawId.trim();
@@ -191,7 +321,8 @@
     return `${docNumber} ${title}`;
   }
 
-  function appendPreviewParagraph(target, block, extraClass) {
+  function appendPreviewParagraph(target, block, extraClass, keyOverride) {
+    const key = keyOverride || editKey("block", block.id);
     const p = document.createElement("p");
     p.className = blockClassName(block, extraClass);
     if (block.docNumber) {
@@ -201,15 +332,19 @@
       p.appendChild(idx);
     }
     const textSpan = document.createElement("span");
-    textSpan.innerHTML = renderTemplate(block.text);
+    textSpan.className = "editable-content";
+    textSpan.innerHTML = editedHtml(key, renderTemplate(block.text));
+    bindEditableHtml(textSpan, key);
     p.appendChild(textSpan);
     target.appendChild(p);
     return p;
   }
 
-  function finalParagraphHtml(block, extraClass) {
+  function finalParagraphHtml(block, extraClass, keyOverride) {
+    const key = keyOverride || editKey("block", block.id);
     const indexHtml = block.docNumber ? `<span class="p-index">${escapeHtml(block.docNumber)} </span>` : "";
-    return `<p${classAttribute(blockClassName(block, extraClass))}>${indexHtml}${cleanTemplate(block.text)}</p>`;
+    const bodyHtml = editedHtml(key, cleanTemplate(block.text));
+    return `<p${classAttribute(blockClassName(block, extraClass))}>${indexHtml}${bodyHtml}</p>`;
   }
 
   function scrollToPreviewBlock(blockId) {
@@ -557,11 +692,13 @@
 
   function renderPreview(focusBlockId) {
     previewRoot.innerHTML = "";
+    updateEditButton();
     appendDocumentChrome(previewRoot);
 
     model.sections.forEach((section) => {
       const heading = document.createElement("h2");
-      heading.textContent = sectionTitle(section);
+      heading.textContent = displaySectionTitle(section);
+      bindEditableTitle(heading, section);
       previewRoot.appendChild(heading);
 
       (section.blocks || []).forEach((block) => {
@@ -578,14 +715,25 @@
 
         if (block.type === "table") {
           if (state.excluded[block.id]) return;
-          const data = state.tableData[block.id] || block.rows;
+          const data = tableDataFor(block);
           const table = document.createElement("table");
           table.className = "preview-table";
           data.forEach((row, ri) => {
             const tr = document.createElement("tr");
-            (row || []).forEach((cellText) => {
+            (row || []).forEach((cellText, ci) => {
               const cell = document.createElement(ri === 0 ? "th" : "td");
               cell.textContent = cellText || "";
+              cell.contentEditable = state.previewEditing ? "true" : "false";
+              cell.spellcheck = true;
+              if (state.previewEditing) {
+                cell.addEventListener("paste", handleEditablePaste);
+                cell.addEventListener("keydown", handleEditableKeydown);
+                cell.addEventListener("input", () => {
+                  data[ri][ci] = cell.textContent;
+                  state.tableData[block.id] = data;
+                  cell.classList.add("manual-edit");
+                });
+              }
               tr.appendChild(cell);
             });
             table.appendChild(tr);
@@ -602,7 +750,9 @@
             warning.textContent = block.unresolvedWarning;
             wrapper.appendChild(warning);
           } else {
-            optionOutputBlocks(selected).forEach((outputBlock) => appendPreviewParagraph(wrapper, outputBlock, "conditional-output"));
+            optionOutputBlocks(selected).forEach((outputBlock) => {
+              appendPreviewParagraph(wrapper, outputBlock, "conditional-output", editKey("choice", `${choice.id}:${outputBlock.id}`));
+            });
           }
         }
 
@@ -677,7 +827,7 @@
     parts.push(`<main class="print-document">`);
     parts.push(documentHeaderHtml());
     model.sections.forEach((section) => {
-      parts.push(`<h2>${escapeHtml(sectionTitle(section))}</h2>`);
+      parts.push(`<h2>${escapeHtml(displaySectionTitle(section))}</h2>`);
       (section.blocks || []).forEach((block) => {
         if (block.type === "paragraph") {
           parts.push(finalParagraphHtml(block));
@@ -700,7 +850,9 @@
           const choice = findChoice(block.choiceId);
           const selected = choice.options.find((option) => option.value === state.choices[choice.id]);
           if (selected) {
-            optionOutputBlocks(selected).forEach((outputBlock) => parts.push(finalParagraphHtml(outputBlock, "conditional-output")));
+            optionOutputBlocks(selected).forEach((outputBlock) => {
+              parts.push(finalParagraphHtml(outputBlock, "conditional-output", editKey("choice", `${choice.id}:${outputBlock.id}`)));
+            });
           }
         }
       });
@@ -761,6 +913,10 @@ ${finalDocumentBody()}
   }
 
   document.getElementById("validate-button").addEventListener("click", renderValidation);
+  editPreviewButton.addEventListener("click", () => {
+    state.previewEditing = !state.previewEditing;
+    renderPreview();
+  });
   exportButton.addEventListener("click", downloadPrintableHtml);
 
   window.TR_APP = { validationMessages, generateFinalHtml };
@@ -770,6 +926,7 @@ ${finalDocumentBody()}
   renderValidation();
 
   previewRoot.addEventListener("click", (e) => {
+    if (e.target.closest("[contenteditable='true']")) return;
     const fieldEl = e.target.closest("[data-field-id]");
     const sourceEl = e.target.closest("p, table") || e.target;
     if (fieldEl) {
