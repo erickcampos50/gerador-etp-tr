@@ -15,36 +15,36 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Model Extraction
 
-- [ ] **EXT-01**: A conversao deve preferir o DOCX como fonte canonica quando ele preservar estrutura, comentarios, cores e italico melhor que o HTML.
-- [ ] **EXT-02**: A extracao deve reconhecer texto preto como conteudo normalmente invariavel.
-- [ ] **EXT-03**: A extracao deve reconhecer texto vermelho italico como conteudo variavel a preencher, adotar, condicionar ou remover.
-- [ ] **EXT-04**: A extracao deve reconhecer placeholders entre colchetes, como `[indicar o prazo]`, como campos de preenchimento.
-- [ ] **EXT-05**: A extracao deve reconhecer blocos alternativos separados por `OU` como escolhas explicitas do usuario.
-- [ ] **EXT-06**: A extracao deve capturar notas explicativas do modelo e vincula-las ao trecho/clausula correspondente sempre que possivel.
-- [ ] **EXT-07**: A extracao deve preservar a versao/identificacao do modelo para rastreabilidade.
+- [x] **EXT-01**: A conversao deve preferir o DOCX como fonte canonica quando ele preservar estrutura, comentarios, cores e italico melhor que o HTML.
+- [x] **EXT-02**: A extracao deve reconhecer texto preto como conteudo normalmente invariavel.
+- [x] **EXT-03**: A extracao deve reconhecer texto vermelho italico como conteudo variavel a preencher, adotar, condicionar ou remover.
+- [x] **EXT-04**: A extracao deve reconhecer placeholders entre colchetes, como `[indicar o prazo]`, como campos de preenchimento.
+- [x] **EXT-05**: A extracao deve reconhecer blocos alternativos separados por `OU` como escolhas explicitas do usuario.
+- [x] **EXT-06**: A extracao deve capturar notas explicativas do modelo e vincula-las ao trecho/clausula correspondente sempre que possivel.
+- [x] **EXT-07**: A extracao deve preservar a versao/identificacao do modelo para rastreabilidade.
 
 ### Guided Authoring
 
-- [ ] **GUI-01**: O usuario deve preencher dados por campos guiados, seletores e decisoes, evitando edicao direta do texto juridico quando houver estrutura conhecida.
-- [ ] **GUI-02**: O usuario deve ver notas explicativas juridicas relevantes junto ao campo, clausula ou escolha que elas condicionam.
-- [ ] **GUI-03**: O usuario deve resolver alternativas `OU` por controles explicitos, com exibicao clara das consequencias no preview.
-- [ ] **GUI-04**: O usuario deve receber alertas para campos obrigatorios vazios, placeholders nao resolvidos e escolhas incompatíveis.
-- [ ] **GUI-05**: O usuario deve conseguir distinguir texto invariavel, texto variavel e instrucoes/notas durante o preenchimento.
+- [x] **GUI-01**: O usuario deve preencher dados por campos guiados, seletores e decisoes, evitando edicao direta do texto juridico quando houver estrutura conhecida.
+- [x] **GUI-02**: O usuario deve ver notas explicativas juridicas relevantes junto ao campo, clausula ou escolha que elas condicionam.
+- [x] **GUI-03**: O usuario deve resolver alternativas `OU` por controles explicitos, com exibicao clara das consequencias no preview.
+- [x] **GUI-04**: O usuario deve receber alertas para campos obrigatorios vazios, placeholders nao resolvidos e escolhas incompatíveis.
+- [x] **GUI-05**: O usuario deve conseguir distinguir texto invariavel, texto variavel e instrucoes/notas durante o preenchimento.
 
 ### Preview And Output
 
-- [ ] **OUT-01**: O sistema deve exibir preview do Termo de Referencia enquanto o usuario preenche campos e escolhas.
-- [ ] **OUT-02**: O sistema deve gerar HTML imprimivel do documento final.
-- [ ] **OUT-03**: O HTML final deve suprimir notas explicativas e instrucoes que devem sair da versao original finalizada.
-- [ ] **OUT-04**: O sistema deve sinalizar ou impedir geracao final se ainda houver placeholders entre colchetes, alternativas `OU` nao resolvidas ou campos obrigatorios vazios.
-- [ ] **OUT-05**: O sistema deve manter informacao de versao/origem do modelo utilizado para facilitar juntada ou revisao no processo.
+- [x] **OUT-01**: O sistema deve exibir preview do Termo de Referencia enquanto o usuario preenche campos e escolhas.
+- [x] **OUT-02**: O sistema deve gerar HTML imprimivel do documento final.
+- [x] **OUT-03**: O HTML final deve suprimir notas explicativas e instrucoes que devem sair da versao original finalizada.
+- [x] **OUT-04**: O sistema deve sinalizar ou impedir geracao final se ainda houver placeholders entre colchetes, alternativas `OU` nao resolvidas ou campos obrigatorios vazios.
+- [x] **OUT-05**: O sistema deve manter informacao de versao/origem do modelo utilizado para facilitar juntada ou revisao no processo.
 
 ### Local App Quality
 
-- [ ] **APP-01**: O v1 deve funcionar como aplicacao web local sem backend, login ou banco de dados.
-- [ ] **APP-02**: O v1 nao deve executar chamadas aos endpoints originais da AGU/CGU herdados da captura do Ger@AGU.
-- [ ] **APP-03**: O codigo deve separar dados extraidos do modelo, regras condicionais e interface para facilitar manutencao.
-- [ ] **APP-04**: Deve existir um roteiro de verificacao manual cobrindo extracao, notas, alternativas, preview e HTML imprimivel.
+- [x] **APP-01**: O v1 deve funcionar como aplicacao web local sem backend, login ou banco de dados.
+- [x] **APP-02**: O v1 nao deve executar chamadas aos endpoints originais da AGU/CGU herdados da captura do Ger@AGU.
+- [x] **APP-03**: O codigo deve separar dados extraidos do modelo, regras condicionais e interface para facilitar manutencao.
+- [x] **APP-04**: Deve existir um roteiro de verificacao manual cobrindo extracao, notas, alternativas, preview e HTML imprimivel.
 
 ## v2 Requirements
 
@@ -77,27 +77,27 @@ Explicitly excluded. Documented to prevent scope creep.
 | REV-01 | Phase 1 | Complete |
 | REV-02 | Phase 1 | Complete |
 | REV-03 | Phase 1 | Complete |
-| EXT-01 | Phase 2 | Pending |
-| EXT-02 | Phase 2 | Pending |
-| EXT-03 | Phase 2 | Pending |
-| EXT-04 | Phase 2 | Pending |
-| EXT-05 | Phase 2 | Pending |
-| EXT-06 | Phase 2 | Pending |
-| EXT-07 | Phase 2 | Pending |
-| GUI-01 | Phase 3 | Pending |
-| GUI-02 | Phase 3 | Pending |
-| GUI-03 | Phase 3 | Pending |
-| GUI-04 | Phase 3 | Pending |
-| GUI-05 | Phase 3 | Pending |
-| OUT-01 | Phase 4 | Pending |
-| OUT-02 | Phase 4 | Pending |
-| OUT-03 | Phase 4 | Pending |
-| OUT-04 | Phase 4 | Pending |
-| OUT-05 | Phase 4 | Pending |
-| APP-01 | Phase 3 | Pending |
-| APP-02 | Phase 3 | Pending |
-| APP-03 | Phase 3 | Pending |
-| APP-04 | Phase 4 | Pending |
+| EXT-01 | Phase 2 | Complete |
+| EXT-02 | Phase 2 | Complete |
+| EXT-03 | Phase 2 | Complete |
+| EXT-04 | Phase 2 | Complete |
+| EXT-05 | Phase 2 | Complete |
+| EXT-06 | Phase 2 | Complete |
+| EXT-07 | Phase 2 | Complete |
+| GUI-01 | Phase 3 | Complete |
+| GUI-02 | Phase 3 | Complete |
+| GUI-03 | Phase 3 | Complete |
+| GUI-04 | Phase 3 | Complete |
+| GUI-05 | Phase 3 | Complete |
+| OUT-01 | Phase 4 | Complete |
+| OUT-02 | Phase 4 | Complete |
+| OUT-03 | Phase 4 | Complete |
+| OUT-04 | Phase 4 | Complete |
+| OUT-05 | Phase 4 | Complete |
+| APP-01 | Phase 3 | Complete |
+| APP-02 | Phase 3 | Complete |
+| APP-03 | Phase 3 | Complete |
+| APP-04 | Phase 4 | Complete |
 
 **Coverage:**
 - v1 requirements: 24 total
@@ -106,4 +106,4 @@ Explicitly excluded. Documented to prevent scope creep.
 
 ---
 *Requirements defined: 2026-05-08*
-*Last updated: 2026-05-08 after Phase 1 execution*
+*Last updated: 2026-05-08 after autonomous milestone completion*

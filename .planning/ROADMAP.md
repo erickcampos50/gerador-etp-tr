@@ -50,6 +50,8 @@ Goal: deliver a local browser-based tool that converts the current AGU Termo de 
 
 ## Phase 2: Build TR Model Extraction Contract
 
+**Status:** Complete
+
 **Goal:** Define and implement the conversion layer from the current DOCX/HTML model into structured data usable by the app.
 
 **Covers:** EXT-01, EXT-02, EXT-03, EXT-04, EXT-05, EXT-06, EXT-07
@@ -67,7 +69,15 @@ Goal: deliver a local browser-based tool that converts the current AGU Termo de 
 - Placeholder and unresolved `OU` detection is reliable on representative samples.
 - Conversion limitations and ambiguous cases are documented for review.
 
+**Delivered:**
+
+- `tools/extract_docx_model.py`
+- `docs/conversion-contract.md`
+- `app/model-data.js`
+
 ## Phase 3: Implement Local Guided Authoring UI
+
+**Status:** Complete
 
 **Goal:** Build the local browser app for filling the TR through guided fields, notes and conditional decisions.
 
@@ -86,7 +96,15 @@ Goal: deliver a local browser-based tool that converts the current AGU Termo de 
 - Notes appear at the point of need and do not pollute the final document.
 - The app runs locally in a browser without backend services.
 
+**Delivered:**
+
+- `app/index.html`
+- `app/styles.css`
+- `app/app.js`
+
 ## Phase 4: Printable HTML Output And Verification
+
+**Status:** Complete
 
 **Goal:** Finalize document generation, printing behavior and verification for v1.
 
@@ -103,6 +121,12 @@ Goal: deliver a local browser-based tool that converts the current AGU Termo de 
 - The printable HTML output contains the chosen clauses and filled fields only.
 - The output does not include notes that official instructions require suppressing.
 - Verification confirms representative sections can be completed and printed.
+
+**Delivered:**
+
+- Printable HTML generation in `app/app.js`
+- `app/README.md`
+- `docs/manual-verification.md`
 
 ## Phase Dependencies
 
@@ -123,4 +147,4 @@ Goal: deliver a local browser-based tool that converts the current AGU Termo de 
 
 ## Next Command
 
-`/gsd-plan-phase 2`
+Milestone complete. Review `.planning/MILESTONE-AUDIT.md`.

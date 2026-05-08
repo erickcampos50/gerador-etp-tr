@@ -18,16 +18,21 @@ Permitir que o usuario preencha corretamente um Termo de Referencia juridicament
 - ✓ O modelo de Termo de Referencia existe em DOCX e HTML em `Documentos modelo/` — existing
 - ✓ O DOCX preserva sinais importantes para automacao: comentarios/notas em `word/comments.xml`, texto vermelho `FF0000`, itálico e estrutura Word — existing
 - ✓ O modelo contem trechos variaveis, alternativas marcadas por `OU`, placeholders entre colchetes e notas explicativas juridicas que orientam o preenchimento — existing
+- ✓ A v1 local entrega extrator DOCX, contrato de conversao, semente estruturada, UI guiada, notas contextuais, preview, validacao e HTML imprimivel — Milestone 1
 
 ### Active
 
-- [ ] Fazer engenharia reversa da experiencia do Ger@AGU para identificar padroes reutilizaveis: campos guiados, notas, preview, marcacao de alteracoes, validacoes e salvamento/saida HTML.
-- [ ] Criar um processo de extracao/conversao do Termo de Referencia a partir do DOCX, usando o HTML apenas quando facilitar leitura visual ou preview.
-- [ ] Classificar trechos do modelo por semantica: texto invariavel em preto, texto variavel em vermelho italico, placeholders entre colchetes, notas explicativas, alternativas `OU`, trechos opcionais e condicionais.
-- [ ] Transformar notas explicativas em ajuda contextual exibida ao usuario de modo equivalente ao Ger@AGU, sem incluir as notas na versao final imprimivel.
-- [ ] Implementar uma ferramenta web local simples, sem backend, para preencher os campos e escolhas do Termo de Referencia.
-- [ ] Gerar preview e saida HTML imprimivel do Termo de Referencia final, removendo instrucoes/notas que devem ser suprimidas e preservando rastreabilidade suficiente para revisao.
-- [ ] Adicionar validacoes para reduzir erro de digitacao, campos obrigatorios vazios, escolhas incompatíveis e alternativas `OU` nao resolvidas.
+(None — Milestone 1 complete. Future scope is tracked under v2 requirements.)
+
+### Completed In Milestone 1
+
+- [x] Fazer engenharia reversa da experiencia do Ger@AGU para identificar padroes reutilizaveis: campos guiados, notas, preview, marcacao de alteracoes, validacoes e salvamento/saida HTML.
+- [x] Criar um processo de extracao/conversao do Termo de Referencia a partir do DOCX, usando o HTML apenas quando facilitar leitura visual ou preview.
+- [x] Classificar trechos do modelo por semantica: texto invariavel em preto, texto variavel em vermelho italico, placeholders entre colchetes, notas explicativas, alternativas `OU`, trechos opcionais e condicionais.
+- [x] Transformar notas explicativas em ajuda contextual exibida ao usuario de modo equivalente ao Ger@AGU, sem incluir as notas na versao final imprimivel.
+- [x] Implementar uma ferramenta web local simples, sem backend, para preencher os campos e escolhas do Termo de Referencia.
+- [x] Gerar preview e saida HTML imprimivel do Termo de Referencia final, removendo instrucoes/notas que devem ser suprimidas e preservando rastreabilidade suficiente para revisao.
+- [x] Adicionar validacoes para reduzir erro de digitacao, campos obrigatorios vazios, escolhas incompatíveis e alternativas `OU` nao resolvidas.
 
 ### Out of Scope
 
@@ -90,4 +95,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-08 after initialization*
+*Last updated: 2026-05-08 after autonomous milestone completion*
